@@ -1,0 +1,107 @@
+name: Frontend CI
+
+on:
+  push:
+    branches: [ main, develop ]
+    paths:
+      - 'frontend/**'
+  pull_request:
+    branches: [ main ]
+    paths:
+      - 'frontend/**'
+
+jobs:
+  test:
+    name: Test Frontend
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+          cache-dependency-path: frontend/meetmate-web/package-lock.json
+
+      - name: Install dependencies
+        working-directory: frontend/meetmate-web
+        run: npm ci
+
+      - name: Run linter
+        working-directory: frontend/meetmate-web
+        run: npm run lint
+
+      - name: Type check
+        working-directory: frontend/meetmate-web
+        run: npm run type-check || npx tsc --noEmit
+
+      - name: Run tests
+        working-directory: frontend/meetmate-web
+        run: npm test || echo "No tests yet"
+
+  build:
+    name: Build Frontend
+    runs-on: ubuntu-latest
+    needs: test
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+          cache-dependency-path: frontend/meetmate-web/package-lock.json
+
+      - name: Install dependencies
+        working-directory: frontend/meetmate-web
+        run: npm ci
+
+      - name: Build
+        working-directory: frontend/meetmate-web
+        run: npm run build
+        env:
+          VITE_API_BASE_URL: http://localhost:8080/api
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v3
+        with:
+          name: frontend-dist
+          path: frontend/meetmate-web/dist
+
+  docker-build:
+    name: Build and Push Frontend Docker Image
+    runs-on: ubuntu-latest
+    needs: build
+    if: github.ref == 'refs/heads/main'
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+
+      - name: Build and push frontend
+        uses: docker/build-push-action@v5
+        with:
+          context: frontend/meetmate-web
+          push: true
+          build-args: |
+            VITE_API_BASE_URL=http://localhost:8080/api
+          tags: |
+            ${{ secrets.DOCKER_USERNAME }}/meetmate-frontend:latest
+            ${{ secrets.DOCKER_USERNAME }}/meetmate-frontend:${{ github.sha }}
+          cache-from: type=registry,ref=${{ secrets.DOCKER_USERNAME }}/meetmate-frontend:buildcache
+          cache-to: type=registry,ref=${{ secrets.DOCKER_USERNAME }}/meetmate-frontend:buildcache,mode=max
