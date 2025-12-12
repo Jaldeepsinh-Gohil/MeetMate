@@ -113,7 +113,7 @@ public class RecommendationService {
                 continue;
             }
             double dist = DistanceCalculator.calculateDistance(
-                pref.currentLat(), pref.currentLng(),
+                pref.currentLat().doubleValue(), pref.currentLng().doubleValue(),
                 place.getLat().doubleValue(), place.getLng().doubleValue()
             );
             distances.add(dist);

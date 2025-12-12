@@ -1,0 +1,107 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:15-alpine
+    container_name: meetmate-postgres
+    environment:
+      POSTGRES_DB: meetmate
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  gateway-service:
+    build:
+      context: ../backend/gateway-service
+      dockerfile: Dockerfile
+    container_name: meetmate-gateway
+    ports:
+      - "8080:8080"
+    environment:
+      SPRING_PROFILES_ACTIVE: dev
+      JWT_SECRET: dev-secret-key-change-in-production-min-256-bits
+      AUTH_SERVICE_URL: http://auth-user-service:8081
+      GROUP_SERVICE_URL: http://group-service:8082
+      PLACE_SERVICE_URL: http://place-recommendation-service:8083
+      ALLOWED_ORIGINS: http://localhost:5173
+    depends_on:
+      - auth-user-service
+      - group-service
+      - place-recommendation-service
+    restart: unless-stopped
+
+  auth-user-service:
+    build:
+      context: ../backend/auth-user-service
+      dockerfile: Dockerfile
+    container_name: meetmate-auth
+    ports:
+      - "8081:8081"
+    environment:
+      SPRING_PROFILES_ACTIVE: dev
+      DATABASE_URL: jdbc:postgresql://postgres:5432/meetmate
+      DATABASE_USERNAME: postgres
+      DATABASE_PASSWORD: postgres
+      JWT_SECRET: dev-secret-key-change-in-production-min-256-bits
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+
+  group-service:
+    build:
+      context: ../backend/group-service
+      dockerfile: Dockerfile
+    container_name: meetmate-group
+    ports:
+      - "8082:8082"
+    environment:
+      SPRING_PROFILES_ACTIVE: dev
+      DATABASE_URL: jdbc:postgresql://postgres:5432/meetmate
+      DATABASE_USERNAME: postgres
+      DATABASE_PASSWORD: postgres
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+
+  place-recommendation-service:
+    build:
+      context: ../backend/place-recommendation-service
+      dockerfile: Dockerfile
+    container_name: meetmate-place
+    ports:
+      - "8083:8083"
+    environment:
+      SPRING_PROFILES_ACTIVE: dev
+      DATABASE_URL: jdbc:postgresql://postgres:5432/meetmate
+      DATABASE_USERNAME: postgres
+      DATABASE_PASSWORD: postgres
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: ../frontend/meetmate-web
+      dockerfile: Dockerfile
+      args:
+        VITE_API_BASE_URL: http://localhost:8080/api
+    container_name: meetmate-frontend
+    ports:
+      - "5173:80"
+    depends_on:
+      - gateway-service
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
