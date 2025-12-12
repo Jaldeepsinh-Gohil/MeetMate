@@ -1,0 +1,130 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: meetmate_auth
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  postgres-group:
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: meetmate_group
+    ports:
+      - "5433:5432"
+    volumes:
+      - postgres_group_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  postgres-places:
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: meetmate_places
+    ports:
+      - "5434:5432"
+    volumes:
+      - postgres_places_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  service-discovery:
+    build:
+      context: .
+      dockerfile: backend/service-discovery/Dockerfile
+    ports:
+      - "8761:8761"
+    depends_on:
+      - postgres
+    environment:
+      - SPRING_PROFILES_ACTIVE=docker
+
+  auth-service:
+    build:
+      context: .
+      dockerfile: backend/auth-user-service/Dockerfile
+    ports:
+      - "8081:8081"
+    depends_on:
+      - postgres
+      - service-discovery
+    environment:
+      - SPRING_PROFILES_ACTIVE=docker
+      - SPRING_DATASOURCE_URL=jdbc:postgresql://postgres:5432/meetmate_auth
+      - EUREKA_CLIENT_SERVICEURL_DEFAULTZONE=http://service-discovery:8761/eureka/
+
+  gateway-service:
+    build:
+      context: .
+      dockerfile: backend/gateway-service/Dockerfile
+    ports:
+      - "8080:8080"
+    depends_on:
+      - service-discovery
+      - auth-service
+    environment:
+      - SPRING_PROFILES_ACTIVE=docker
+      - EUREKA_CLIENT_SERVICEURL_DEFAULTZONE=http://service-discovery:8761/eureka/
+
+  group-service:
+    build:
+      context: .
+      dockerfile: backend/group-service/Dockerfile
+    ports:
+      - "8082:8082"
+    depends_on:
+      - postgres-group
+      - service-discovery
+    environment:
+      - SPRING_PROFILES_ACTIVE=docker
+      - SPRING_DATASOURCE_URL=jdbc:postgresql://postgres-group:5432/meetmate_group
+      - EUREKA_CLIENT_SERVICEURL_DEFAULTZONE=http://service-discovery:8761/eureka/
+
+  place-service:
+    build:
+      context: .
+      dockerfile: backend/place-recommendation-service/Dockerfile
+    ports:
+      - "8083:8083"
+    depends_on:
+      - postgres-places
+      - service-discovery
+    environment:
+      - SPRING_PROFILES_ACTIVE=docker
+      - SPRING_DATASOURCE_URL=jdbc:postgresql://postgres-places:5432/meetmate_places
+      - EUREKA_CLIENT_SERVICEURL_DEFAULTZONE=http://service-discovery:8761/eureka/
+
+  frontend:
+    build:
+      context: .
+      dockerfile: frontend/meetmate-web/Dockerfile
+    ports:
+      - "5173:5173"
+    depends_on:
+      - gateway-service
+
+volumes:
+  postgres_data:
+  postgres_group_data:
+  postgres_places_data:
