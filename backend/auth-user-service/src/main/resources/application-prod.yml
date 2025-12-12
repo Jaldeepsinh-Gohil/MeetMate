@@ -1,0 +1,19 @@
+spring:
+  datasource:
+    url: ${DATABASE_URL}
+    username: ${DATABASE_USERNAME}
+    password: ${DATABASE_PASSWORD}
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    show-sql: false
+
+logging:
+  level:
+    com.meetmate: INFO
+
+jwt:
+  secret: ${JWT_SECRET}
+  access-token-expiry: 86400000
+  refresh-token-expiry: 604800000
+
