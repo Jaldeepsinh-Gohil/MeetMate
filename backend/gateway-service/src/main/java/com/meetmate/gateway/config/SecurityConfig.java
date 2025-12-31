@@ -16,10 +16,10 @@ import java.util.Arrays;
 @EnableWebFluxSecurity
 public class SecurityConfig {
 
-    private final JwtAuthenticationFilter jwtAuthenticationFilter;
+    private final JwtWebFilter jwtWebFilter;
 
-    public SecurityConfig(JwtAuthenticationFilter jwtAuthenticationFilter) {
-        this.jwtAuthenticationFilter = jwtAuthenticationFilter;
+    public SecurityConfig(JwtWebFilter jwtWebFilter) {
+        this.jwtWebFilter = jwtWebFilter;
     }
 
     @Bean
@@ -38,7 +38,7 @@ public class SecurityConfig {
                         ).permitAll()
                         .anyExchange().authenticated()
                 )
-                .addFilterAt(jwtAuthenticationFilter, SecurityWebFiltersOrder.AUTHENTICATION)
+                .addFilterAt(jwtWebFilter, SecurityWebFiltersOrder.AUTHENTICATION)
                 .build();
     }
 
